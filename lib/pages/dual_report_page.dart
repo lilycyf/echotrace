@@ -8,8 +8,10 @@ import 'package:path/path.dart' as p;
 import '../services/app_path_service.dart';
 import '../services/dual_report_service.dart';
 import '../services/dual_report_cache_service.dart';
+import '../services/database_service.dart';
 import '../providers/app_state.dart';
 import '../services/logger_service.dart';
+import '../utils/year_selection_mixin.dart';
 import 'package:provider/provider.dart';
 import 'friend_selector_page.dart';
 import 'dual_report_display_page.dart';
@@ -22,7 +24,8 @@ class DualReportPage extends StatefulWidget {
   State<DualReportPage> createState() => _DualReportPageState();
 }
 
-class _DualReportPageState extends State<DualReportPage> {
+class _DualReportPageState extends State<DualReportPage>
+    with YearSelectionMixin<DualReportPage> {
   bool _isGenerating = false;
   String _currentTaskName = '';
   String _currentTaskStatus = '';
@@ -38,11 +41,22 @@ class _DualReportPageState extends State<DualReportPage> {
   Completer<Map<String, dynamic>>? _reportCompleter;
 
   @override
+  DatabaseService get yearDatabaseService =>
+      Provider.of<AppState>(context, listen: false).databaseService;
+
+  @override
   void initState() {
     super.initState();
     // 在frame渲染完成后直接显示好友列表
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _selectFriend();
+    initYearSelection(autoPrompt: false);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final confirmed = await ensureYearSelection();
+      if (!mounted) return;
+      if (!confirmed) {
+        Navigator.pop(context);
+        return;
+      }
+      await _selectFriend();
     });
   }
 
@@ -77,6 +91,7 @@ class _DualReportPageState extends State<DualReportPage> {
     required String dbPath,
     required String friendUsername,
     required String? manualWxid,
+    required int? filterYear,
   }) async {
     _disposeReportIsolate();
     await logger.debug(
@@ -147,7 +162,7 @@ class _DualReportPageState extends State<DualReportPage> {
           'sendPort': receivePort.sendPort,
           'dbPath': dbPath,
           'friendUsername': friendUsername,
-          'filterYear': null,
+          'filterYear': filterYear,
           'manualWxid': manualWxid,
         },
         onExit: exitPort.sendPort,
@@ -187,7 +202,7 @@ class _DualReportPageState extends State<DualReportPage> {
       MaterialPageRoute(
         builder: (context) => FriendSelectorPage(
           dualReportService: dualReportService,
-          year: null, // 不限年份
+          year: selectedYear,
         ),
       ),
     );
@@ -260,7 +275,7 @@ class _DualReportPageState extends State<DualReportPage> {
       await _updateProgress('检查缓存', '处理中', 10);
       final cachedData = await DualReportCacheService.loadReport(
         friendUsername,
-        null,
+        selectedYear,
       );
       await logger.debug(
         'DualReportPage',
@@ -287,6 +302,7 @@ class _DualReportPageState extends State<DualReportPage> {
         dbPath: dbPath,
         friendUsername: friendUsername,
         manualWxid: manualWxid,
+        filterYear: selectedYear,
       );
 
       final yearlyStats =
@@ -342,7 +358,11 @@ class _DualReportPageState extends State<DualReportPage> {
       await _updateProgress('保存报告', '处理中', 96);
       final cacheData = _cloneForCache(reportData);
       _stripEmojiDataUrls(cacheData);
-      await DualReportCacheService.saveReport(friendUsername, null, cacheData);
+      await DualReportCacheService.saveReport(
+        friendUsername,
+        selectedYear,
+        cacheData,
+      );
       await logger.debug('DualReportPage', 'cache saved');
       await _updateProgress('保存报告', '已完成', 100);
 

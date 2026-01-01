@@ -207,7 +207,7 @@ class _PrivacyDialogContentState extends State<_PrivacyDialogContent> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          'v1.0.0 • Updated 2025',
+                          'v1.0.0 • Updated ${DateTime.now().year}',
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: colorScheme.outline,
                           ),

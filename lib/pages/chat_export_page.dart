@@ -50,6 +50,7 @@ class _ChatExportPageState extends State<ChatExportPage>
   bool _exportAvatars = true;
   late final TextEditingController _searchController;
   late final FocusNode _searchFocusNode;
+  DateTime _cachedLatestMessageDate = DateTime.now();
 
   // 添加静态缓存变量，用于存储会话列表
   static List<ChatSession>? _cachedSessions;
@@ -250,6 +251,11 @@ class _ChatExportPageState extends State<ChatExportPage>
       setState(() {
         _allSessions = _cachedSessions!;
         _isLoadingSessions = false;
+        _cachedLatestMessageDate = _resolveLatestMessageDate();
+        _selectedRange = _clampDateRange(
+          _selectedRange,
+          _cachedLatestMessageDate,
+        );
       });
       return;
     }
@@ -282,6 +288,11 @@ class _ChatExportPageState extends State<ChatExportPage>
         setState(() {
           _allSessions = filteredSessions;
           _isLoadingSessions = false;
+          _cachedLatestMessageDate = _resolveLatestMessageDate();
+          _selectedRange = _clampDateRange(
+            _selectedRange,
+            _cachedLatestMessageDate,
+          );
         });
       }
 
@@ -328,6 +339,37 @@ class _ChatExportPageState extends State<ChatExportPage>
     }).toList();
   }
 
+  DateTime _resolveLatestMessageDate() {
+    if (_allSessions.isEmpty) return DateTime.now();
+    int? maxTs;
+    for (final session in _allSessions) {
+      if (maxTs == null || session.lastTimestamp > maxTs) {
+        maxTs = session.lastTimestamp;
+      }
+    }
+    if (maxTs == null || maxTs <= 0) return DateTime.now();
+    return DateTime.fromMillisecondsSinceEpoch(maxTs * 1000);
+  }
+
+  DateTimeRange _clampDateRange(
+    DateTimeRange? range,
+    DateTime latest,
+  ) {
+    final firstDate = DateTime(2000);
+    final lastDate = latest.isBefore(firstDate) ? firstDate : latest;
+    final base = range ??
+        DateTimeRange(
+          start: lastDate.subtract(const Duration(days: 7)),
+          end: lastDate,
+        );
+    var start = base.start.isBefore(firstDate) ? firstDate : base.start;
+    var end = base.end.isAfter(lastDate) ? lastDate : base.end;
+    if (end.isBefore(start)) {
+      end = start;
+    }
+    return DateTimeRange(start: start, end: end);
+  }
+
   void _toggleSelectAll() {
     setState(() {
       _selectAll = !_selectAll;
@@ -359,11 +401,16 @@ class _ChatExportPageState extends State<ChatExportPage>
       return;
     }
 
+    final latest = _resolveLatestMessageDate();
+    final firstDate = DateTime(2000);
+    final lastDate = latest.isBefore(firstDate) ? firstDate : latest;
+    final initialRange = _clampDateRange(_selectedRange, lastDate);
+
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-      initialDateRange: _selectedRange,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      initialDateRange: initialRange,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(

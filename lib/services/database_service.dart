@@ -5975,12 +5975,10 @@ class DatabaseService {
         return [];
       }
 
+      final totalSteps = privateSessions.length + 1;
       for (int idx = 0; idx < privateSessions.length; idx++) {
         final session = privateSessions[idx];
         final displayName = displayNames[session.username] ?? session.username;
-
-        // 报告进度
-        onProgress?.call(idx + 1, privateSessions.length, displayName);
 
         try {
           // 使用已缓存的数据库列表
@@ -6007,7 +6005,6 @@ class DatabaseService {
 
           // 如果没有找到消息表，跳过
           if (dbInfos.isEmpty) {
-            processedCount++;
             continue;
           }
 
@@ -6098,10 +6095,12 @@ class DatabaseService {
             hasDataCount++;
           }
 
-          processedCount++;
         } catch (e) {
           // 减少错误日志，只在调试模式下输出
           continue;
+        } finally {
+          processedCount++;
+          onProgress?.call(processedCount, totalSteps, displayName);
         }
       }
 
@@ -6111,6 +6110,7 @@ class DatabaseService {
           b['avgResponseTimeMinutes'] as double,
         ),
       );
+      onProgress?.call(totalSteps, totalSteps, '整理完成');
 
       await log('========== 响应速度分析完成 ==========', level: 'info');
       await log(

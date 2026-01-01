@@ -18,6 +18,7 @@ import '../services/dual_report_service.dart';
 import '../services/logger_service.dart';
 import '../models/analytics_data.dart';
 import '../utils/string_utils.dart';
+import '../utils/year_selection_mixin.dart';
 import '../widgets/annual_report/dual_report_html_renderer.dart';
 import 'annual_report_display_page.dart';
 
@@ -1129,222 +1130,22 @@ class _AnnualReportSubPage extends StatefulWidget {
   State<_AnnualReportSubPage> createState() => _AnnualReportSubPageState();
 }
 
-class _YearSelectionResult {
-  final int? year;
-  final bool confirmed;
-
-  const _YearSelectionResult({required this.year, required this.confirmed});
-}
-
-class _AnnualReportSubPageState extends State<_AnnualReportSubPage> {
-  bool _isLoadingYears = true;
-  String? _yearLoadError;
-  List<int> _availableYears = const [];
-  int? _selectedYear;
-  bool _yearConfirmed = false;
-  bool _autoPrompted = false;
+class _AnnualReportSubPageState extends State<_AnnualReportSubPage>
+    with YearSelectionMixin<_AnnualReportSubPage> {
+  @override
+  DatabaseService get yearDatabaseService => widget.databaseService;
 
   @override
   void initState() {
     super.initState();
-    _loadAvailableYears();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || _autoPrompted) return;
-      _autoPrompted = true;
-      await _ensureYearSelection();
-    });
-  }
-
-  Future<void> _loadAvailableYears() async {
-    setState(() {
-      _isLoadingYears = true;
-      _yearLoadError = null;
-    });
-    try {
-      final years = await widget.databaseService.getAvailableMessageYears();
-      if (!mounted) return;
-      setState(() {
-        _availableYears = years;
-        if (_selectedYear != null && !_availableYears.contains(_selectedYear)) {
-          _selectedYear = null;
-        }
-        if (_selectedYear == null && _yearConfirmed) {
-          _yearConfirmed = false;
-        }
-        _isLoadingYears = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _availableYears = const [];
-        _selectedYear = null;
-        _yearConfirmed = false;
-        _yearLoadError = '年份加载失败';
-        _isLoadingYears = false;
-      });
-    }
-  }
-
-  Future<bool> _ensureYearSelection() async {
-    if (_yearConfirmed) return true;
-
-    if (!_isLoadingYears && _availableYears.isEmpty && _yearLoadError == null) {
-      setState(() {
-        _isLoadingYears = true;
-      });
-    }
-
-    bool loadRequested = false;
-    final result = await showModalBottomSheet<_YearSelectionResult>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        final theme = Theme.of(context);
-        int? tempSelection = _selectedYear;
-
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-            child: StatefulBuilder(
-              builder: (context, setSheetState) {
-                if (!loadRequested) {
-                  loadRequested = true;
-                  Future.microtask(() async {
-                    await _loadAvailableYears();
-                    if (context.mounted) {
-                      setSheetState(() {});
-                    }
-                  });
-                }
-                final isLoading = _isLoadingYears;
-                final hasYears = _availableYears.isNotEmpty;
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '选择时间范围',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _yearLoadError != null
-                          ? '年份加载失败，仅支持全部时间'
-                          : isLoading
-                          ? '正在加载可用年份...'
-                          : '仅列出有消息的年份',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: _yearLoadError != null
-                            ? Colors.orange
-                            : Colors.grey[600],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (isLoading)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Center(
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                      )
-                    else
-                      Flexible(
-                        child: ListView(
-                          shrinkWrap: true,
-                          children: [
-                            RadioListTile<int?>(
-                              value: null,
-                              groupValue: tempSelection,
-                              onChanged: (value) {
-                                setSheetState(() {
-                                  tempSelection = value;
-                                });
-                              },
-                              title: const Text('全部时间'),
-                              dense: true,
-                            ),
-                            if (hasYears)
-                              for (final year in _availableYears.reversed)
-                                RadioListTile<int?>(
-                                  value: year,
-                                  groupValue: tempSelection,
-                                  onChanged: (value) {
-                                    setSheetState(() {
-                                      tempSelection = value;
-                                    });
-                                  },
-                                  title: Text('$year年'),
-                                  dense: true,
-                                ),
-                          ],
-                        ),
-                      ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop(
-                              const _YearSelectionResult(
-                                year: null,
-                                confirmed: false,
-                              ),
-                            );
-                          },
-                          child: const Text('取消'),
-                        ),
-                        const Spacer(),
-                        ElevatedButton(
-                          onPressed: isLoading
-                              ? null
-                              : () {
-                            Navigator.of(context).pop(
-                              _YearSelectionResult(
-                                year: tempSelection,
-                                confirmed: true,
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF07C160),
-                            foregroundColor: Colors.white,
-                          ),
-                          child: const Text('确定'),
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
-
-    if (!mounted) return false;
-    if (result == null || !result.confirmed) {
-      return false;
-    }
-
-    setState(() {
-      _selectedYear = result.year;
-      _yearConfirmed = true;
-    });
-    return true;
+    initYearSelection();
   }
 
   @override
   Widget build(BuildContext context) {
-    final reportKey = ValueKey<String>(_selectedYear?.toString() ?? 'all');
+    final reportKey = ValueKey<String>(selectedYear?.toString() ?? 'all');
 
-    if (!_yearConfirmed) {
+    if (!yearConfirmed) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1352,7 +1153,7 @@ class _AnnualReportSubPageState extends State<_AnnualReportSubPage> {
             const Text('请选择时间范围'),
             const SizedBox(height: 12),
             ElevatedButton(
-              onPressed: _ensureYearSelection,
+              onPressed: ensureYearSelection,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF07C160),
                 foregroundColor: Colors.white,
@@ -1367,9 +1168,9 @@ class _AnnualReportSubPageState extends State<_AnnualReportSubPage> {
     return AnnualReportDisplayPage(
       key: reportKey,
       databaseService: widget.databaseService,
-      year: _selectedYear,
+      year: selectedYear,
       autoStart: false,
-      onBeforeGenerate: _ensureYearSelection,
+      onBeforeGenerate: ensureYearSelection,
       showAppBar: false,
       onClose: widget.onClose,
     );
@@ -1392,7 +1193,8 @@ class _DualReportSubPage extends StatefulWidget {
   State<_DualReportSubPage> createState() => _DualReportSubPageState();
 }
 
-class _DualReportSubPageState extends State<_DualReportSubPage> {
+class _DualReportSubPageState extends State<_DualReportSubPage>
+    with YearSelectionMixin<_DualReportSubPage> {
   static const _wechatGreen = Color(0xFF07C160);
 
   int _topN = 10;
@@ -1420,6 +1222,15 @@ class _DualReportSubPageState extends State<_DualReportSubPage> {
   StreamSubscription? _reportExitSubscription;
   StreamSubscription? _reportErrorSubscription;
   Completer<Map<String, dynamic>>? _reportCompleter;
+
+  @override
+  DatabaseService get yearDatabaseService => widget.databaseService;
+
+  @override
+  void initState() {
+    super.initState();
+    initYearSelection();
+  }
 
   @override
   void dispose() {
@@ -1528,7 +1339,7 @@ class _DualReportSubPageState extends State<_DualReportSubPage> {
           'sendPort': receivePort.sendPort,
           'dbPath': dbPath,
           'friendUsername': ranking.username,
-          'filterYear': null,
+          'filterYear': selectedYear,
           'manualWxid': manualWxid,
         },
         onExit: exitPort.sendPort,
@@ -1575,7 +1386,7 @@ class _DualReportSubPageState extends State<_DualReportSubPage> {
       await _updateProgress('检查缓存', '处理中', 10);
       final cached = await DualReportCacheService.loadReport(
         ranking.username,
-        null,
+        selectedYear,
       );
       await logger.debug(
         'DualReportPage',
@@ -1593,7 +1404,7 @@ class _DualReportSubPageState extends State<_DualReportSubPage> {
         _stripEmojiDataUrls(cacheData);
         await DualReportCacheService.saveReport(
           ranking.username,
-          null,
+          selectedYear,
           cacheData,
         );
         await logger.debug('DualReportPage', 'cache saved');
@@ -2049,6 +1860,25 @@ class _DualReportSubPageState extends State<_DualReportSubPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!yearConfirmed) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('请选择时间范围'),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: ensureYearSelection,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF07C160),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('选择时间'),
+            ),
+          ],
+        ),
+      );
+    }
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 200),
       child: _isGenerating || _isHtmlLoading

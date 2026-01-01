@@ -22,6 +22,7 @@ class AnnualReportHtmlRenderer {
     final fonts = _fontCache!;
 
     final yearText = year != null ? '${year}年' : '历史以来';
+    final reportFileName = year != null ? 'report_$year.png' : 'report_all.png';
     final numberFormat = NumberFormat.decimalPattern();
 
     // --- 数据准备 ---
@@ -95,7 +96,7 @@ class AnnualReportHtmlRenderer {
     buffer.writeln('<body>');
     
     buffer.writeln('<main class="main-container" id="capture">'); 
-    buffer.writeln(_buildNav());
+    buffer.writeln(_buildNav(reportFileName));
 
     buffer.writeln(_section('cover', 'cover', _buildCoverBody(yearText)));
 
@@ -525,7 +526,7 @@ section.page.visible .content-wrapper {
 <div class="label-text">巅峰时刻</div>
 <div class="hero-title">${peak.formattedDate}</div>
 <div class="big-stat">一天里你一共发了 <div class="stat-num">${fmt.format(peak.messageCount)}</div><div class="stat-unit">条消息</div></div>
-<div class="hero-desc">那是热烈的一天，你和 <span class="hl">${_escapeHtml(peak.topFriendDisplayName ?? '好友')}</span> 聊了 ${fmt.format(peak.topFriendMessageCount)} 条，聊得停不下来。</div>
+<div class="hero-desc">在这个快节奏的世界，有人正陪在你身边听你慢慢地讲<br>那天，你和 <span class="hl">${_escapeHtml(peak.topFriendDisplayName ?? '好友')}</span> 的 ${fmt.format(peak.topFriendMessageCount)} 条消息见证着这一切<br>有些话，只想对你说</div>
 ''';
   }
 
@@ -702,7 +703,7 @@ $heatmap
     return String.fromCharCode(firstRune);
   }
 
-  static String _buildNav() {
+  static String _buildNav(String reportFileName) {
     return '''
 <div class="nav-dots" id="nav"></div>
 <script>
@@ -772,7 +773,7 @@ $heatmap
       
       if (!isMobile) {
         const link = document.createElement('a');
-        link.download = 'report_2025.png';
+        link.download = '$reportFileName';
         link.href = imgData;
         link.click();
         alert('年度报告已生成并下载！');

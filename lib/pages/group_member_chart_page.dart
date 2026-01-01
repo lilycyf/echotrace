@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
 import '../providers/app_state.dart';
+import '../services/database_service.dart';
 import '../services/group_chat_service.dart';
 
 // 无需导入任何词云第三方包
@@ -18,8 +19,11 @@ class GroupMemberChartPage extends StatefulWidget {
 
 class _GroupMemberChartPageState extends State<GroupMemberChartPage> {
   late final GroupChatService _groupChatService;
+  late final DatabaseService _databaseService;
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 15));
   DateTime _endDate = DateTime.now();
+  DateTime _latestMessageDate = DateTime.now();
+  DateTime? _earliestMessageDate;
   List<GroupMember> _members = [];
   GroupMember? _selectedMember;
   List<DailyMessageCount>? _chartData;
@@ -32,8 +36,37 @@ class _GroupMemberChartPageState extends State<GroupMemberChartPage> {
   void initState() {
     super.initState();
     final appState = Provider.of<AppState>(context, listen: false);
-    _groupChatService = GroupChatService(appState.databaseService);
+    _databaseService = appState.databaseService;
+    _groupChatService = GroupChatService(_databaseService);
+    _syncDateBounds();
     _loadMembers();
+  }
+
+  Future<void> _syncDateBounds() async {
+    try {
+      final range =
+          await _databaseService.getSessionTimeRange(widget.groupInfo.username);
+      final first = range['first'];
+      final last = range['last'];
+      if (last == null || last <= 0) return;
+      final latest = DateTime.fromMillisecondsSinceEpoch(last * 1000);
+      final earliest = (first != null && first > 0)
+          ? DateTime.fromMillisecondsSinceEpoch(first * 1000)
+          : null;
+      if (!mounted) return;
+      setState(() {
+        _latestMessageDate = latest;
+        _earliestMessageDate = earliest;
+        _endDate = latest;
+        final defaultStart = latest.subtract(const Duration(days: 15));
+        _startDate = (earliest != null && earliest.isAfter(defaultStart))
+            ? earliest
+            : defaultStart;
+        if (_startDate.isAfter(_endDate)) {
+          _startDate = _endDate;
+        }
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadMembers() async {
@@ -176,8 +209,8 @@ class _GroupMemberChartPageState extends State<GroupMemberChartPage> {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: isStart ? _startDate : _endDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
+      firstDate: _earliestMessageDate ?? DateTime(2000),
+      lastDate: _latestMessageDate,
     );
     if (picked != null) {
       setState(() {

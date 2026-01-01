@@ -144,12 +144,11 @@ class FormerFriendAnalyzer {
 
     // 第一阶段：收集所有符合条件的候选人（连续聊天 >= 14天）
     List<FormerFriendResult> candidates = [];
+    final totalSteps = privateSessions.length + 1;
 
     for (int i = 0; i < privateSessions.length; i++) {
       final session = privateSessions[i];
       final displayName = displayNames[session.username] ?? session.username;
-
-      onProgress?.call(i + 1, privateSessions.length, displayName);
 
       try {
         // 获取该会话的所有消息日期
@@ -269,6 +268,8 @@ class FormerFriendAnalyzer {
         );
       } catch (e) {
         onLog?.call('处理会话 $displayName 时出错: $e', level: 'warning');
+      } finally {
+        onProgress?.call(i + 1, totalSteps, displayName);
       }
     }
 
@@ -349,6 +350,8 @@ class FormerFriendAnalyzer {
       '统计: 总会话=$totalSessions, 有消息=$sessionsWithMessages, 不足14天=$sessionsUnder14Days',
       level: 'info',
     );
+
+    onProgress?.call(totalSteps, totalSteps, '筛选完成');
 
     final results = bestCandidate != null
         ? [bestCandidate]

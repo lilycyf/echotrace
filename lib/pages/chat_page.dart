@@ -424,7 +424,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     final firstDate = range.startDate ?? DateTime.now();
     final lastDate = range.endDate ?? DateTime.now();
     final initialRange = DateTimeRange(start: firstDate, end: lastDate);
-    final now = DateTime.now();
 
     return showModalBottomSheet<_BulkRangeSelection>(
       context: context,
@@ -476,7 +475,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                     final picked = await showDateRangePicker(
                       context: sheetContext,
                       firstDate: firstDate,
-                      lastDate: lastDate.isAfter(now) ? now : lastDate,
+                      lastDate: lastDate,
                       initialDateRange: initialRange,
                     );
                     if (!sheetContext.mounted) return;
@@ -812,8 +811,21 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   }
 
   Future<DateTime?> _showJumpDatePickerDialog() async {
-    final startDate = _availableStartDate ?? DateTime.now();
-    final endDate = _availableEndDate ?? DateTime.now();
+    final detailStart = _sessionDetailInfo?.firstMessageTime != null
+        ? DateTime.fromMillisecondsSinceEpoch(
+            _sessionDetailInfo!.firstMessageTime! * 1000,
+          )
+        : null;
+    final detailEnd = _sessionDetailInfo?.latestMessageTime != null
+        ? DateTime.fromMillisecondsSinceEpoch(
+            _sessionDetailInfo!.latestMessageTime! * 1000,
+          )
+        : null;
+    DateTime startDate = _availableStartDate ?? detailStart ?? DateTime.now();
+    DateTime endDate = _availableEndDate ?? detailEnd ?? startDate;
+    if (endDate.isBefore(startDate)) {
+      endDate = startDate;
+    }
     DateTime selected =
         _jumpTargetDate ?? (endDate.isAfter(startDate) ? endDate : startDate);
     if (!_availableMessageDates.contains(_formatDateOnly(selected))) {

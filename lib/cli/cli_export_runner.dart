@@ -96,16 +96,24 @@ class CliExportRunner {
 
       // 计算时间范围
       final now = DateTime.now();
-      final defaultEnd = DateTime(2100, 1, 1);
+      int latestTs = 0;
+      for (final session in sessions) {
+        if (session.lastTimestamp > latestTs) {
+          latestTs = session.lastTimestamp;
+        }
+      }
+      final latestDate = latestTs > 0
+          ? DateTime.fromMillisecondsSinceEpoch(latestTs * 1000)
+          : now;
       final startTimestamp = options.useAllTime
           ? 0
           : _startOfDay(options.start ?? now).millisecondsSinceEpoch ~/ 1000;
       final endTimestamp = options.useAllTime
-          ? defaultEnd.millisecondsSinceEpoch ~/ 1000
-          : _endOfDay(options.end ?? now).millisecondsSinceEpoch ~/ 1000;
+          ? latestDate.millisecondsSinceEpoch ~/ 1000
+          : _endOfDay(options.end ?? latestDate).millisecondsSinceEpoch ~/ 1000;
 
       _log(
-        '导出格式: ${options.format} | 时间范围: ${options.useAllTime ? "全部" : "${_fmtDate(options.start ?? now)} 至 ${_fmtDate(options.end ?? now)}"}',
+        '导出格式: ${options.format} | 时间范围: ${options.useAllTime ? "全部" : "${_fmtDate(options.start ?? latestDate)} 至 ${_fmtDate(options.end ?? latestDate)}"}',
       );
 
       final exportService = ChatExportService(databaseService);
