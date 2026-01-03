@@ -3,7 +3,7 @@
 
 欢迎使用 EchoTrace！这是一份面向初次使用者的全流程指南，我们将一步步引导你完成环境准备、密钥配置、数据库解密，最终生成年度报告或导出备份。
 
-> **适用平台**：Windows（支持图形界面 UI 与 命令行 CLI）
+> **适用平台**：Windows 10+
 >
 > 你也可以点此查看由其他小伙伴制作的视频教程： [视频1](https://v.douyin.com/8o1DkiSc9Zo/) 或 [视频2](https://v.douyin.com/PBqrv7jiVLI/) 
 > 

@@ -118,6 +118,43 @@ class DllInjector {
     return null;
   }
 
+  static String? _findWeChatFromScoop() {
+    final userProfile = Platform.environment['USERPROFILE'];
+    final scoopHome =
+        Platform.environment['SCOOP'] ?? Platform.environment['SCOOP_HOME'];
+    final possibleRoots = [
+      if (scoopHome != null && scoopHome.isNotEmpty) scoopHome,
+      if (userProfile != null && userProfile.isNotEmpty)
+        path.join(userProfile, 'scoop'),
+    ];
+
+    const appNames = ['wechat', 'weixin'];
+    const exeNames = ['WeChat.exe', 'Weixin.exe'];
+    const subDirs = ['', 'WeChat', 'Weixin'];
+
+    for (final root in possibleRoots) {
+      for (final appName in appNames) {
+        for (final subDir in subDirs) {
+          for (final exeName in exeNames) {
+            final exePath = path.join(
+              root,
+              'apps',
+              appName,
+              'current',
+              subDir,
+              exeName,
+            );
+            if (File(exePath).existsSync()) {
+              return exePath;
+            }
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
   static String? _findWeChatFromUninstall() {
     final uninstallKeys = [
       r'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
@@ -435,7 +472,7 @@ class DllInjector {
   }
 
   static Future<String?> getWeChatDirectory() async {
-    final wechatPath = _getWeChatPathFromRegistry();
+    final wechatPath = _getWeChatPathFromRegistry() ?? _findWeChatFromScoop();
 
     if (wechatPath != null) {
       final wechatFile = File(wechatPath);
@@ -551,7 +588,7 @@ class DllInjector {
         }
       }
 
-      wechatPath ??= _getWeChatPathFromRegistry();
+      wechatPath ??= _getWeChatPathFromRegistry() ?? _findWeChatFromScoop();
 
       if (wechatPath == null || !await File(wechatPath).exists()) {
         final drives = ['C', 'D', 'E', 'F'];
